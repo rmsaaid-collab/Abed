@@ -14,7 +14,11 @@ jobs:
           java-version: '11'
       - run: chmod +x gradlew
       - name: Install NDK 25.1.8937393
-        run: yes | sdkmanager --licenses && sdkmanager "ndk;25.1.8937393"
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME" -name "sdkmanager" -type f 2>/dev/null | head -n 1)
+          echo "Using sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "ndk;25.1.8937393"
       - run: ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
