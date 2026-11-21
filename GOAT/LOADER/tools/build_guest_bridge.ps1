@@ -15,7 +15,7 @@ if ([string]::IsNullOrWhiteSpace($sdkRoot)) {
 
 $androidJar = Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'platforms') -Directory |
     Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'android.jar') } |
-    Sort-Object { [int]($_.Name -replace '^android-', '') } -Descending |
+    Sort-Object { if ($_.Name -match '(\d+)') { [int]$matches[1] } else { 0 } } -Descending |
     Select-Object -First 1 |
     ForEach-Object { Join-Path $_.FullName 'android.jar' }
 
