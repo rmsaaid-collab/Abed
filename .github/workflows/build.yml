@@ -26,13 +26,16 @@ jobs:
         shell: pwsh
         run: |
           $scriptPath = Join-Path (Get-Location) "tools\build_guest_bridge.ps1"
-          Write-Host "Target script: $scriptPath"
-          $content = Get-Content -Path $scriptPath -Raw
-          $pattern = '\[int\]\(\$_\.Name\s+-replace\s+[''"]\^android-[''"]\s*,\s*[''"][''"]\)'
-          $replacement = '([int]([regex]::Match($_.Name, ''\d+'').Value))'
-          $content = [regex]::Replace($content, $pattern, $replacement)
-          Set-Content -Path $scriptPath -Value $content -NoNewline
-          Select-String -Path $scriptPath -Pattern "Sort-Object"
+          $lines = Get-Content -Path $scriptPath
+          $lines = $lines | ForEach-Object {
+            if ($_ -match 'Sort-Object.*android-') {
+              $_ -replace '\{\s*\[int\]\(\$_\.Name[^}]*\}', '{ if ($_.Name -match ''\d+'') { [int]$matches[0] } else { 0 } }'
+            } else {
+              $_
+            }
+          }
+          Set-Content -Path $scriptPath -Value $lines
+          $lines | Where-Object { $_ -match 'Sort-Object' }
       - run: .\gradlew.bat assembleDebug
       - uses: actions/upload-artifact@v4
         with:
