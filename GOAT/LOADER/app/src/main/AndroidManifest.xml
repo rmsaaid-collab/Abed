@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  JawakerEngine — App module AndroidManifest.xml
+
+  NOTE: The BlackBox (Bcore) library already declares ALL of its internal
+  components (SystemCallProvider, FileProvider, DaemonService, ProxyVpnService,
+  ProxyBroadcastReceiver, 50x ProxyActivity, 50x TransparentProxyActivity,
+  50x ProxyPendingActivity, LauncherActivity) inside Bcore/src/main/AndroidManifest.xml.
+  The Android Gradle Plugin MERGES that library manifest into this one
+  automatically at build time. Therefore this app manifest MUST NOT re-declare
+  those components — doing so would cause duplicate-component merge errors.
+
+  This manifest only declares:
+    1. Permissions required by the host app (on top of what Bcore already requests)
+    2. The host Application class (.MainApplication)
+    3. The launcher Activity (.MainActivity) and .ShortcutActivity
+    4. <queries> for Android 11+ package visibility
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.jawaker.engine">
+
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+    <!--                              PERMISSIONS                              -->
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+
+    <!-- ───── Network ───── -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+
+    <!-- ───── Storage (Legacy + Scoped) ───── -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+
+    <!-- ───── Android 13+ (API 33) Media Permissions ───── -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+
+    <!-- ───── Android 14+ (API 34) Partial Media Access ───── -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+
+    <!-- ───── Foreground Services ───── -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ───── Package Query (Android 11+) ───── -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- ───── Install / Boot / Tasks ───── -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
+    <uses-permission android:name="android.permission.RESTART_PACKAGES" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <uses-permission android:name="android.permission.GET_TASKS"
+        tools:ignore="Deprecated" />
+
+    <!-- ───── Hardware Features (optional) ───── -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- ───── Location ───── -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- ───── Phone State ───── -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
+
+    <!-- ───── Contacts / Accounts ───── -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+
+    <!-- ───── Shortcuts / Badge ───── -->
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
+    <uses-permission android:name="com.android.launcher.permission.UNINSTALL_SHORTCUT" />
+    <uses-permission android:name="com.android.launcher.permission.READ_SETTINGS" />
+
+    <!-- ───── Google Services ───── -->
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+    <uses-permission android:name="com.google.android.providers.gsf.permission.READ_GSERVICES" />
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+
+    <!-- ───── VPN (for Bcore ProxyVpnService) ───── -->
+    <uses-permission android:name="android.permission.BIND_VPN_SERVICE" />
+
+    <!-- ───── System Alert Window ───── -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- ───── Device Info / Settings ───── -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.CHANGE_CONFIGURATION"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+    <!--                              APPLICATION                              -->
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+    <application
+        android:name=".MainApplication"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:requestLegacyExternalStorage="true"
+        android:largeHeap="true"
+        android:hardwareAccelerated="true"
+        android:multiArch="true"
+        android:extractNativeLibs="true"
+        android:usesCleartextTraffic="true"
+        android:preserveLegacyExternalStorage="true"
+        android:enableOnBackInvokedCallback="true"
+        android:appCategory="game"
+        android:theme="@style/Theme.JawakerEngine"
+        tools:targetApi="34">
+
+        <!-- ════════════════════════════════════════════════════════════════ -->
+        <!--                MAIN APPLICATION ACTIVITIES                       -->
+        <!-- ════════════════════════════════════════════════════════════════ -->
+
+        <!-- Launcher Activity -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.JawakerEngine">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Shortcut intent filter -->
+            <intent-filter>
+                <action android:name="android.intent.action.CREATE_SHORTCUT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- ShortcutActivity — Handles dynamic shortcuts for the virtual game -->
+        <activity
+            android:name=".ShortcutActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- ════════════════════════════════════════════════════════════════ -->
+        <!--                         METADATA                                 -->
+        <!-- ════════════════════════════════════════════════════════════════ -->
+        <meta-data
+            android:name="top.niunaijun.blackbox.VERSION"
+            android:value="1.0.0" />
+
+    </application>
+
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+    <!--              QUERIES (Android 11+ Package Visibility)                -->
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+    <queries>
+        <!-- Query the target game package -->
+        <package android:name="com.boundless.jawaker" />
+
+        <!-- Query all packages (fallback) -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
+</manifest>

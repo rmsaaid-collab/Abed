@@ -1,0 +1,62 @@
+*** Begin Patch
+*** Update File: C:\Users\laith\Downloads\src Project V28.2.90\SOLITAIRE_GOAT_ENGINE_V6_FIX_20260830\ENGINE\src\main\cpp\solitaire_auto.cpp
+@@
+ uint64_t g_pacingBackoffMs = 0;
++// The loader selects a device-specific search slice after libengine is loaded.
++// These knobs affect virtual planning work only; physical card/talon dispatch
++// remains protected by the exact-state acknowledgement and adaptive backoff.
++// That separation lets PC emulators spend more CPU per frame without making a
++// slower phone drop Unity input or execute a stale committed-plan move.
++std::atomic<int> g_searchSliceNodes{2200};
++std::atomic<int> g_searchSliceMs{7};
++std::atomic<int> g_searchArenaNodes{28000};
++std::atomic<int> g_performanceProfile{2};
+ int      g_lastMoveId = -1;
+@@
+ static void advancePersistentSearch(const GameState& rootState) {
+     ++g_persistentPlanner.frames;
+     const bool endgame = g_persistentPlanner.endgame;
+@@
+-    const int frameNodeBudget = g_recoveryMode ? (endgame ? 3400 : 2100) :
+-                                                (endgame ? 3000 : 1700);
+-    const uint64_t deadline = nowMs() + (g_recoveryMode ? (endgame ? 13 : 10) :
+-                                                          (endgame ? 11 : 9));
++    const int baseNodes = g_searchSliceNodes.load(std::memory_order_relaxed);
++    const int baseSliceMs = g_searchSliceMs.load(std::memory_order_relaxed);
++    // Normal play stays within the loader's frame budget. Endgame and recovery
++    // receive bounded multipliers because a wider proof here is cheaper than a
++    // wrong physical move. The millisecond deadline always remains authoritative.
++    const int frameNodeBudget = g_recoveryMode
++        ? (endgame ? baseNodes * 2 : baseNodes + baseNodes / 2)
++        : (endgame ? baseNodes + baseNodes / 2 : baseNodes);
++    const int frameSliceMs = baseSliceMs + (endgame ? 2 : 0) +
++                             (g_recoveryMode ? 2 : 0);
++    const uint64_t deadline = nowMs() + (uint64_t)frameSliceMs;
+@@
+ void solitaire_set_performance_profile(int profile, int sliceNodes, int sliceMs,
+                                        int arenaNodes, int cardSafetyMs,
+                                        int talonSafetyMs) {
+-    // The matched GOAT Engine build already uses its proven 4 ms card / 2 ms
+-    // Talon pacing behind exact-state acknowledgement. Keep that gameplay
+-    // profile byte-for-byte equivalent instead of letting a loader preset
+-    // silently slow it down or alter its search proof thresholds.
+-    SOL_LOG("[PERFORMANCE] goat-baseline profile=%d fixed=4/2 requested=%d/%d slice=%d/%d arena=%d",
+-            profile, cardSafetyMs, talonSafetyMs, sliceNodes, sliceMs,
+-            arenaNodes);
++    // Accept only bounded planner budgets from the signed loader. Device ULTRA
++    // uses a compact slice; PC TURBO gets a wider slice. We deliberately do not
++    // copy the loader's raw card/talon delays: the proven 4/2 ms minimum plus
++    // exact-state ACK and adaptive backoff is safer and faster on both targets.
++    const int safeProfile = std::clamp(profile, 0, 3);
++    const int safeNodes = std::clamp(sliceNodes, 700, 6000);
++    const int safeSliceMs = std::clamp(sliceMs, 3, 13);
++    const int safeArena = std::clamp(arenaNodes, 12000, 64000);
++    g_performanceProfile.store(safeProfile, std::memory_order_relaxed);
++    g_searchSliceNodes.store(safeNodes, std::memory_order_relaxed);
++    g_searchSliceMs.store(safeSliceMs, std::memory_order_relaxed);
++    g_searchArenaNodes.store(safeArena, std::memory_order_relaxed);
++    SOL_LOG("[PERFORMANCE] applied profile=%d nodes=%d sliceMs=%d arena=%d physical=4/2 requestedPhysical=%d/%d exactAck=1",
++            safeProfile, safeNodes, safeSliceMs, safeArena,
++            cardSafetyMs, talonSafetyMs);
+ }
+*** End Patch

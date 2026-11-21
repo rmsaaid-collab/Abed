@@ -1,0 +1,162 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+def androidConfig = project.extensions.getByType(com.android.build.gradle.AppExtension)
+androidConfig.with {
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    ndkVersion "25.1.8937393"
+
+    defaultConfig {
+        applicationId "com.jawaker.engine"
+        minSdkVersion 21
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 2
+        versionName "1.1.0"
+
+        // Only ship arm64-v8a for the injected native libraries
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    flavorDimensions "runtime"
+    productFlavors {
+        device {
+            dimension "runtime"
+            buildConfigField "boolean", "EMULATOR_PROFILE", "false"
+        }
+        emulator {
+            dimension "runtime"
+            versionNameSuffix "-pc"
+            buildConfigField "boolean", "EMULATOR_PROFILE", "true"
+        }
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+            jniDebuggable true
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+
+        release {
+            debuggable false
+            jniDebuggable false
+            minifyEnabled true
+            // BlackBox resolves a small number of resources dynamically, so
+            // code obfuscation is enabled while resource shrinking stays off.
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    sourceSets {
+        main {
+            // This class is compiled into the isolated bridge asset below. It
+            // must not also expose the native bridge from the loader DEX.
+            java.exclude 'com/google/firebase/TrainerOverlayView.java'
+        }
+    }
+
+    buildFeatures {
+        viewBinding true
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    dexOptions {
+        preDexLibraries false
+        maxProcessCount 8
+        javaMaxHeapSize "4g"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    aaptOptions {
+        cruncherEnabled = false
+        useNewCruncher = false
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
+        warningsAsErrors false
+        disable "UnusedResources", 'RestrictedApi'
+        textOutput "stdout"
+        textReport false
+        check 'NewApi', 'InlinedApi'
+    }
+
+    packagingOptions {
+        // Avoid duplicate .so errors from the many sub-modules
+        pickFirst 'lib/armeabi-v7a/*.so'
+        pickFirst 'lib/arm64-v8a/*.so'
+        pickFirst 'lib/x86/*.so'
+    }
+}
+
+tasks.withType(Javadoc) {
+    options.addStringOption('Xdoclint:none', '-quiet')
+    options.addStringOption('encoding', 'UTF-8')
+    options.addStringOption('charSet', 'UTF-8')
+}
+
+// Build a bridge-only dex before packaging. The guest must never receive the
+// complete loader APK on its class path because that would shadow Jawaker's
+// own Kotlin/coroutines/Firebase classes.
+task buildGuestBridge(type: Exec) {
+    def bridgeSource = file('src/main/java/com/google/firebase/TrainerOverlayView.java')
+    def bridgeAsset = file('src/main/assets/goat_bridge.jar')
+    inputs.file bridgeSource
+    outputs.file bridgeAsset
+    workingDir rootProject.projectDir
+    commandLine 'powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass',
+            '-File', file('../tools/build_guest_bridge.ps1').absolutePath
+}
+
+task buildLoadingCompat(type: Exec) {
+    def compatSource = file('src/main/cpp/loading_compat.cpp')
+    def dobbyLibrary = file('src/main/jniLibs/arm64-v8a/libdobby.so')
+    def compatLibrary = file('src/main/jniLibs/arm64-v8a/libloading_compat.so')
+    inputs.files compatSource, dobbyLibrary
+    outputs.file compatLibrary
+    workingDir rootProject.projectDir
+    commandLine 'powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass',
+            '-File', file('../tools/build_loading_compat.ps1').absolutePath
+}
+
+preBuild.dependsOn buildGuestBridge, buildLoadingCompat
+
+dependencies {
+    implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])
+
+    // BlackBox virtual engine core
+    implementation project(':Bcore')
+
+    // AndroidX / Material
+    implementation 'androidx.core:core-ktx:1.3.2'
+    implementation 'androidx.appcompat:appcompat:1.3.0-rc01'
+    implementation 'com.google.android.material:material:1.5.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
+    implementation "androidx.activity:activity-ktx:1.2.2"
+    implementation "androidx.fragment:fragment-ktx:1.3.3"
+
+    // Coroutines
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.4.2"
+
+    // Lifecycle
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.3.1"
+    implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.3.1"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.3.1"
+}

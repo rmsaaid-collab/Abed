@@ -1,0 +1,302 @@
+*** Begin Patch
+*** Update File: C:\Users\laith\Downloads\src Project V28.2.90\SOLITAIRE_GOAT_ENGINE_V6_FIX_20260830\ENGINE\src\main\cpp\solitaire_auto.cpp
+@@
+ static bool moveCreatesIrreversibleProgress(const GameState& state,
+                                             const Move& move) {
+     GameState after = state;
+     if (!applyVirtualMove(after, move)) return false;
+     return hiddenCardCount(after) < hiddenCardCount(state) ||
+            virtualFoundationCount(after) > virtualFoundationCount(state) ||
+            foundationRiskDebt(after.foundations) < foundationRiskDebt(state.foundations);
+ }
++
++// A plan may contain several preparatory moves before it reaches the reveal or
++// safe Foundation advance that made the branch attractive.  The old executor
++// committed the complete searched line, including everything *after* that
++// milestone.  That let a good search result drift into a later cosmetic
++// Tableau shuffle without asking the solver to evaluate the freshly observed
++// board again.  A certified prefix ends exactly at the first real milestone.
++struct CertifiedPlanPrefix {
++    bool valid = false;
++    int progressIndex = -1;
++    int failureIndex = -1;
++    std::string reason;
++    std::string failureStateKey;
++};
++
++static bool canonicalStateVisitedSinceProgress(const std::string& key) {
++    if (!g_progressTracker.initialized) return false;
++    const auto it = g_progressTracker.visitsSinceProgress.find(key);
++    return it != g_progressTracker.visitsSinceProgress.end() && it->second > 0;
++}
++
++static CertifiedPlanPrefix certifyPlanPrefix(const GameState& root,
++                                              const std::vector<Move>& line,
++                                              bool allowRiskyFoundation,
++                                              bool consultPhysicalHistory = true) {
++    CertifiedPlanPrefix result;
++    if (line.empty()) {
++        result.reason = "empty-plan";
++        return result;
++    }
++
++    const int rootHidden = hiddenCardCount(root);
++    const int rootFoundation = virtualFoundationCount(root);
++    const int rootDebt = foundationRiskDebt(root.foundations);
++    GameState cursor = root;
++    std::unordered_set<std::string> localCanonicalStates;
++    localCanonicalStates.insert(solverPositionKey(root));
++
++    for (int i = 0; i < (int)line.size(); ++i) {
++        if (!applyVirtualMove(cursor, line[i])) {
++            result.failureIndex = i;
++            result.reason = "illegal-virtual-step";
++            return result;
++        }
++
++        const int hiddenNow = hiddenCardCount(cursor);
++        const int foundationNow = virtualFoundationCount(cursor);
++        const int debtNow = foundationRiskDebt(cursor.foundations);
++        const bool won = foundationNow == 52;
++        const bool hiddenGain = hiddenNow < rootHidden;
++        const bool safeFoundationGain = foundationNow > rootFoundation &&
++                                        debtNow <= rootDebt;
++        const bool debtReduction = debtNow < rootDebt;
++        const bool acceptedRiskyGain = allowRiskyFoundation &&
++                                       foundationNow > rootFoundation;
++        const bool reachedMilestone = won || hiddenGain || safeFoundationGain ||
++                                      debtReduction || acceptedRiskyGain;
++        const std::string canonicalKey = solverPositionKey(cursor);
++
++        // Column indices are presentation details. Re-entering the same
++        // canonical structure before making progress is the exact signature
++        // of King/sequence ping-pong, even when the physical column numbers
++        // differ and virtualPositionKey therefore looks new.
++        if (!reachedMilestone &&
++            localCanonicalStates.find(canonicalKey) != localCanonicalStates.end()) {
++            result.failureIndex = i;
++            result.reason = "canonical-cycle-in-plan";
++            result.failureStateKey = canonicalKey;
++            return result;
++        }
++        if (!reachedMilestone && consultPhysicalHistory &&
++            canonicalStateVisitedSinceProgress(canonicalKey)) {
++            result.failureIndex = i;
++            result.reason = "visited-no-progress-state";
++            result.failureStateKey = canonicalKey;
++            return result;
++        }
++        localCanonicalStates.insert(canonicalKey);
++
++        if (reachedMilestone) {
++            result.valid = true;
++            result.progressIndex = i;
++            result.reason = won ? "win" :
++                            (hiddenGain ? "hidden-reveal" :
++                             (debtReduction ? "foundation-debt-reduced" :
++                              (safeFoundationGain ? "safe-foundation" :
++                                                    "risk-bounded-foundation")));
++            return result;
++        }
++    }
++
++    result.failureIndex = (int)line.size();
++    result.reason = "no-proven-progress";
++    result.failureStateKey = solverPositionKey(cursor);
++    return result;
++}
++
++static bool runPlanGuardSelfTests() {
++    Card king;
++    king.id = 11;
++    king.value = 11; // Jawaker value 11 maps to King (rank 12).
++    king.knownValue = 11;
++    GameState left;
++    left.tableau[0].push_back(king);
++    GameState right = left;
++    right.tableau[0].clear();
++    right.tableau[5].push_back(king);
++    const bool canonicalColumns = solverPositionKey(left) == solverPositionKey(right) &&
++                                  virtualPositionKey(left) != virtualPositionKey(right);
++
++    // A full Draw-3 followed by an immediate recycle returns to the same
++    // structural state and must be rejected as a no-progress cycle.
++    GameState recycle;
++    recycle.drawCount = 3;
++    for (int i = 0; i < 3; ++i) {
++        Card card;
++        card.id = 20 + i;
++        card.value = i;
++        card.knownValue = i;
++        recycle.talon.push_back(card);
++    }
++    const std::vector<Move> recycleLine{
++        {VirtualMoveKind::Talon, -1, -1, -1},
++        {VirtualMoveKind::Talon, -1, -1, -1}
++    };
++    const CertifiedPlanPrefix cycle = certifyPlanPrefix(
++        recycle, recycleLine, false, false);
++    const bool rejectsCycle = !cycle.valid &&
++                              cycle.reason == "canonical-cycle-in-plan";
++
++    // Moving the exposed sequence below reveals a known face-down card.  This
++    // is genuine progress and the certified prefix must end at that first move.
++    GameState reveal;
++    Card hidden;
++    hidden.id = 31;
++    hidden.value = -1;
++    hidden.knownValue = 0;
++    Card moving;
++    moving.id = 32;
++    moving.value = 4;  // rank 5, black
++    moving.knownValue = 4;
++    Card destination;
++    destination.id = 33;
++    destination.value = 18; // rank 6, red
++    destination.knownValue = 18;
++    reveal.tableau[0] = {hidden, moving};
++    reveal.tableau[1] = {destination};
++    const std::vector<Move> revealLine{
++        {VirtualMoveKind::Tableau, 0, 1, 1}
++    };
++    const CertifiedPlanPrefix progress = certifyPlanPrefix(
++        reveal, revealLine, false, false);
++    const bool acceptsReveal = progress.valid && progress.progressIndex == 0;
++
++    SOL_LOG("[PLAN_GUARD_TEST] canonical=%d cycle=%d reveal=%d",
++            canonicalColumns ? 1 : 0, rejectsCycle ? 1 : 0,
++            acceptsReveal ? 1 : 0);
++    return canonicalColumns && rejectsCycle && acceptsReveal;
++}
+@@
+ static bool physicalCandidateAllowed(const GameState& state, const Move& move, uint64_t now) {
+-    if (move.kind != VirtualMoveKind::Tableau || move.from < 0) return true;
+-    if (move.from >= 7 || move.to < 0 || move.to >= 7 ||
+-        move.start < 0 || move.start >= (int)state.tableau[move.from].size()) return false;
+     GameState after = state;
+     if (!applyVirtualMove(after, move)) return false;
+-    // Reject only an exact previously reached game state.  The former
+-    // card-based 120-second reversal ban also blocked necessary preparation
+-    // after the stock/foundation had changed, leaving legal winning moves in
+-    // the generator but none executable in reality.
+-    return !seenRecentSolverState(virtualPositionKey(after), now);
++
++    // Keep the old exact-state guard for physical Tableau reversals. It is
++    // intentionally not applied to a legal Foundation pullback because the
++    // Foundation/Waste context may have changed and made that rescue useful.
++    if (move.kind == VirtualMoveKind::Tableau && move.from >= 0 &&
++        seenRecentSolverState(virtualPositionKey(after), now)) {
++        return false;
++    }
++
++    // The missing half of the old guard: columns are symmetric in Solitaire.
++    // During one no-progress epoch, never execute a move that returns to a
++    // canonical structure already reached under different column indices.
++    // A reveal/Foundation advance starts a new epoch and remains admissible.
++    if (!moveCreatesIrreversibleProgress(state, move) &&
++        canonicalStateVisitedSinceProgress(solverPositionKey(after))) {
++        return false;
++    }
++    return true;
+ }
+@@
+     auto& tried = g_emergencyEdgesTried[rootKey];
+     if (tried.find(edgeKey) != tried.end() || rootMoveFailed(rootKey, move))
+         return false;
++    if (!physicalCandidateAllowed(state, move, nowMs())) {
++        tried.insert(edgeKey);
++        return false;
++    }
+ 
+     GameState expected = state;
+@@
+     if (!state.talon.empty() || !state.waste.empty()) {
+         const Move talonMove{VirtualMoveKind::Talon, -1, -1, -1};
+         GameState next = state;
+         if (applyVirtualMove(next, talonMove) &&
+-            !seenRecentSolverState(virtualPositionKey(next), nowMs()) &&
++            physicalCandidateAllowed(state, talonMove, nowMs()) &&
+             executeTrackedEmergencyMove(localGs, state, talonMove, -500000,
+                                         "talon-new-state")) {
+@@
+     for (const RankedPlan& rankedPlan : ranked) {
+         const RootPlan& plan = rankedPlan.plan;
+         if (!physicalCandidateAllowed(state, plan.first, now)) {
+             g_failedStrategicBranches[rootKey].insert(moveKey(plan.first));
+             discardPlannerRootEdge(rootKey, moveKey(plan.first));
+             continue;
+         }
++        const bool allowRiskyFoundation = rootSource != RootSource::Normal;
++        const CertifiedPlanPrefix certified = certifyPlanPrefix(
++            state, plan.line, allowRiskyFoundation);
++        if (!certified.valid) {
++            // Do not blacklist the whole first edge for a bad *deeper* route;
++            // another continuation below the same legal root may still win.
++            // Removing only the published plan lets the retained frontier find
++            // that sibling while the offending structure receives a penalty.
++            discardPlannerRootEdge(rootKey, moveKey(plan.first));
++            if (!certified.failureStateKey.empty()) {
++                int& failures = g_strategicStateFailures[certified.failureStateKey];
++                failures = std::min(5, failures + 1);
++            }
++            SOL_LOG("[PLAN_GUARD] rejected move=%s reason=%s step=%d line=%d",
++                    moveKey(plan.first).c_str(), certified.reason.c_str(),
++                    certified.failureIndex, (int)plan.line.size());
++            continue;
++        }
++        std::vector<Move> executableLine(
++            plan.line.begin(), plan.line.begin() + certified.progressIndex + 1);
+         GameState expected = state;
+         if (!applyVirtualMove(expected, plan.first)) continue;
+@@
+-        saveDecisionCheckpoint(state, plan.first, plan.line,
++        saveDecisionCheckpoint(state, plan.first, executableLine,
+                                std::move(checkpointAlternatives), plan.score);
+         g_committedPlan.clear();
+-        if (plan.line.size() > 1)
+-            g_committedPlan.assign(plan.line.begin() + 1, plan.line.end());
++        if (executableLine.size() > 1)
++            g_committedPlan.assign(executableLine.begin() + 1,
++                                   executableLine.end());
+@@
+             SOL_LOG("[RECOVERY_RESULT] selectedBranch=%s searchNodes=%d newPlanLength=%d",
+                     g_pendingMoveKey.c_str(), g_persistentPlanner.expanded,
+-                    (int)plan.line.size());
++                    (int)executableLine.size());
+@@
+-        SOL_LOG("expert selected move=%s score=%d effective=%d line=%d horizon=%d/%d terminal=%d known=%d/52 expanded=%d frames=%d backup=%d source=%d",
++        SOL_LOG("expert selected move=%s score=%d effective=%d line=%d/%d milestone=%s horizon=%d/%d terminal=%d known=%d/52 expanded=%d frames=%d backup=%d source=%d",
+                 g_pendingMoveKey.c_str(), plan.score, rankedPlan.effective,
+-                (int)plan.line.size(), rankedPlan.horizon, requiredHorizon,
++                (int)executableLine.size(), (int)plan.line.size(),
++                certified.reason.c_str(), rankedPlan.horizon, requiredHorizon,
+                 rankedPlan.terminalLeaves, g_persistentPlanner.rootKnownCards,
+@@
+ } // namespace
+ 
++void solitaire_set_performance_profile(int profile, int sliceNodes, int sliceMs,
++                                       int arenaNodes, int cardSafetyMs,
++                                       int talonSafetyMs) {
++    // The matched GOAT Engine build already uses its proven 4 ms card / 2 ms
++    // Talon pacing behind exact-state acknowledgement. Keep that gameplay
++    // profile byte-for-byte equivalent instead of letting a loader preset
++    // silently slow it down or alter its search proof thresholds.
++    SOL_LOG("[PERFORMANCE] goat-baseline profile=%d fixed=4/2 requested=%d/%d slice=%d/%d arena=%d",
++            profile, cardSafetyMs, talonSafetyMs, sliceNodes, sliceMs,
++            arenaNodes);
++}
++
+ void solitaire_init(uintptr_t il2cppBase) {
+@@
+     g_syncPlayerCardsMapping = (SyncPlayerCardsMappingFn)(
+         il2cppBase + RVA_SOL_SYNC_PLAYER_CARDS_MAPPING);
+     g_rayMove = (RayMoveFn)(il2cppBase + RVA_SOL_RAY_MOVE_CARD);
++    static const bool planGuardSelfTestsPassed = runPlanGuardSelfTests();
+     SOL_LOG("init str=%p ui=%p stacks=%p talon=%p talonUi=%p mapSync=%p rayMove=%p domain=%p assemblies=%p image=%p class=%p static=%p",
+@@
+             g_syncPlayerCardsMapping, g_rayMove,
+             g_domainGet, g_domainAssemblies, g_assemblyImage, g_classFromName, g_staticData);
++    if (!planGuardSelfTestsPassed)
++        SOL_LOG("[PLAN_GUARD_TEST] FAILED: candidate guard must remain conservative");
+ }
+*** End Patch

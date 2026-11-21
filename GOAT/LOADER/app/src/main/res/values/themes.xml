@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Base Application Theme - Material Design 3 Dark -->
+    <style name="Theme.JawakerEngine" parent="Theme.Material3.Dark.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/gradient_start</item>
+        <item name="colorPrimaryVariant">@color/gradient_end</item>
+        <item name="colorOnPrimary">@color/text_white</item>
+
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/accent_indigo</item>
+        <item name="colorSecondaryVariant">@color/accent_purple</item>
+        <item name="colorOnSecondary">@color/text_white</item>
+
+        <!-- Surface colors -->
+        <item name="colorSurface">@color/surface_dark</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorSurfaceVariant">@color/surface_elevated</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+
+        <!-- Background -->
+        <item name="android:colorBackground">@color/black_background</item>
+        <item name="android:windowBackground">@color/black_background</item>
+
+        <!-- Status bar -->
+        <item name="android:statusBarColor">@color/black_background</item>
+        <item name="android:navigationBarColor">@color/black_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+
+        <!-- Window animations -->
+        <item name="android:windowAnimationStyle">@style/Animation.JawakerEngine</item>
+
+        <!-- Edge-to-edge -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="o_mr1">shortEdges</item>
+    </style>
+
+    <!-- Window Animation Style -->
+    <style name="Animation.JawakerEngine" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/fade_in</item>
+        <item name="android:activityOpenExitAnimation">@anim/fade_out</item>
+        <item name="android:activityCloseEnterAnimation">@anim/fade_in</item>
+        <item name="android:activityCloseExitAnimation">@anim/fade_out</item>
+    </style>
+
+    <!-- Card Styles -->
+    <style name="Widget.JawakerEngine.CardView" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardBackgroundColor">@color/surface_card</item>
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/border_subtle</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="contentPadding">20dp</item>
+    </style>
+
+    <style name="Widget.JawakerEngine.CardView.Status" parent="Widget.JawakerEngine.CardView">
+        <item name="cardCornerRadius">16dp</item>
+        <item name="contentPadding">16dp</item>
+    </style>
+
+    <!-- Text Styles -->
+    <style name="TextAppearance.JawakerEngine.Title" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">-0.02</item>
+    </style>
+
+    <style name="TextAppearance.JawakerEngine.Subtitle" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+
+    <style name="TextAppearance.JawakerEngine.Label" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+
+    <style name="TextAppearance.JawakerEngine.Value" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TextAppearance.JawakerEngine.Status" parent="TextAppearance.Material3.BodyMedium" />
+
+    <style name="TextAppearance.JawakerEngine.Status.Success">
+        <item name="android:textColor">@color/status_success</item>
+    </style>
+
+    <style name="TextAppearance.JawakerEngine.Status.Warning">
+        <item name="android:textColor">@color/status_warning</item>
+    </style>
+
+    <style name="TextAppearance.JawakerEngine.Status.Error">
+        <item name="android:textColor">@color/status_error</item>
+    </style>
+
+    <style name="TextAppearance.JawakerEngine.Button" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textColor">@color/text_white</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+</resources>

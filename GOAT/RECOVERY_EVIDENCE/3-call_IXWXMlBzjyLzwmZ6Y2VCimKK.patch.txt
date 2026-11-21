@@ -1,0 +1,64 @@
+*** Begin Patch
+*** Update File: C:\Users\laith\Downloads\src Project V28.2.90\SOLITAIRE_GOAT_ENGINE_V6_FIX_20260830\ENGINE\src\main\cpp\solitaire_auto.cpp
+@@
+-constexpr uint64_t SOL_UI_UPDATE_WATCHDOG_MS      = 240;
++constexpr uint64_t SOL_UI_UPDATE_WATCHDOG_MS      = 240;
++// Phone ULTRA only: Unity keeps `isUpdatingUI` raised for most of the visual
++// Talon/card animation even though LocalGs has already committed the move. The
++// exact-state acknowledgement below remains authoritative, so a shorter bounded
++// watchdog removes the visible "heavy flip" pause without blindly double-clicking.
++// Other profiles (including the PC emulator build) keep the proven 240 ms gate.
++constexpr uint64_t SOL_PHONE_TALON_UI_WATCHDOG_MS = 145;
++constexpr uint64_t SOL_PHONE_CARD_UI_WATCHDOG_MS  = 180;
+@@
+ std::atomic<int> g_searchSliceNodes{2200};
+ std::atomic<int> g_searchSliceMs{7};
+ std::atomic<int> g_searchArenaNodes{28000};
+ std::atomic<int> g_performanceProfile{2};
++
++static bool phoneUltraProfile() {
++    return g_performanceProfile.load(std::memory_order_relaxed) == 2;
++}
++
++static uint64_t effectiveUiWatchdogMs() {
++    if (!phoneUltraProfile()) return SOL_UI_UPDATE_WATCHDOG_MS;
++
++    // Back off automatically on a device/round where Unity rejected an action.
++    // Two misses restore almost the original 240 ms window; successful exact
++    // acknowledgements decay this penalty again, so healthy rounds stay fast.
++    const uint64_t fastBase = g_lastActionWasTalon
++        ? SOL_PHONE_TALON_UI_WATCHDOG_MS
++        : SOL_PHONE_CARD_UI_WATCHDOG_MS;
++    return std::min(SOL_UI_UPDATE_WATCHDOG_MS,
++                    fastBase + std::min<uint64_t>(g_pacingBackoffMs, 95));
++}
++
++static uint64_t pacingRecoveryStepMs() {
++    // The phone fast path should not remain slow for several successful moves
++    // after one transient animation miss. PC/default behavior is unchanged.
++    return phoneUltraProfile() ? 45 : SOL_PACING_RECOVERY_STEP_MS;
++}
+@@
+         if (rootKey == g_pendingExpectedKey) {
+             g_waitingForMoveResult = false;
+-            g_pacingBackoffMs = g_pacingBackoffMs > SOL_PACING_RECOVERY_STEP_MS
+-                ? g_pacingBackoffMs - SOL_PACING_RECOVERY_STEP_MS
++            const uint64_t recoveryStep = pacingRecoveryStepMs();
++            g_pacingBackoffMs = g_pacingBackoffMs > recoveryStep
++                ? g_pacingBackoffMs - recoveryStep
+                 : 0;
+@@
+-    SOL_LOG("[PERFORMANCE] applied profile=%d nodes=%d sliceMs=%d arena=%d physical=4/2 requestedPhysical=%d/%d exactAck=1",
++    SOL_LOG("[PERFORMANCE] applied profile=%d nodes=%d sliceMs=%d arena=%d physical=4/2 uiWatchdog=%llu/%llu requestedPhysical=%d/%d exactAck=1",
+              safeProfile, safeNodes, safeSliceMs, safeArena,
++             (unsigned long long)(safeProfile == 2 ? SOL_PHONE_CARD_UI_WATCHDOG_MS
++                                                   : SOL_UI_UPDATE_WATCHDOG_MS),
++             (unsigned long long)(safeProfile == 2 ? SOL_PHONE_TALON_UI_WATCHDOG_MS
++                                                   : SOL_UI_UPDATE_WATCHDOG_MS),
+              cardSafetyMs, talonSafetyMs);
+@@
+-    if (uiUpdating && g_lastMoveMs != 0 &&
+-        now - g_lastMoveMs < SOL_UI_UPDATE_WATCHDOG_MS) return;
++    if (uiUpdating && g_lastMoveMs != 0 &&
++        now - g_lastMoveMs < effectiveUiWatchdogMs()) return;
+*** End Patch

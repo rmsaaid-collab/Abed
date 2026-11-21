@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Background -->
+    <color name="black_background">#0F0F14</color>
+    <color name="surface_dark">#1A1A24</color>
+    <color name="surface_elevated">#21212E</color>
+    <color name="surface_card">#1E1E2A</color>
+
+    <!-- Gradient Colors -->
+    <color name="gradient_start">#6C5CE7</color>
+    <color name="gradient_center">#7B68EE</color>
+    <color name="gradient_end">#8B5CF6</color>
+
+    <!-- Accent Colors -->
+    <color name="accent_purple">#A78BFA</color>
+    <color name="accent_indigo">#6366F1</color>
+    <color name="accent_pink">#EC4899</color>
+    <color name="accent_cyan">#22D3EE</color>
+
+    <!-- Status Colors -->
+    <color name="status_success">#22C55E</color>
+    <color name="status_success_dim">#22C55E33</color>
+    <color name="status_warning">#F59E0B</color>
+    <color name="status_warning_dim">#F59E0B33</color>
+    <color name="status_error">#EF4444</color>
+    <color name="status_error_dim">#EF444433</color>
+    <color name="status_info">#3B82F6</color>
+    <color name="status_info_dim">#3B82F633</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#F3F4F6</color>
+    <color name="text_secondary">#9CA3AF</color>
+    <color name="text_hint">#6B7280</color>
+    <color name="text_white">#FFFFFF</color>
+
+    <!-- Border/Divider -->
+    <color name="border_subtle">#2D2D3D</color>
+    <color name="border_medium">#3D3D52</color>
+
+    <!-- Ripple -->
+    <color name="ripple_light">#33FFFFFF</color>
+
+    <!-- Misc -->
+    <color name="transparent">#00000000</color>
+    <color name="semi_transparent">#990F0F14</color>
+    <color name="glow_purple">#6C5CE744</color>
+</resources>

@@ -1,0 +1,52 @@
+*** Begin Patch
+*** Update File: C:\Users\laith\Downloads\src Project V28.2.90\SOLITAIRE_GOAT_ENGINE_V6_FIX_20260830\ENGINE\src\main\cpp\solitaire_auto.cpp
+@@
+ static CertifiedPlanPrefix certifyPlanPrefix(const GameState& root,
+                                               const std::vector<Move>& line,
+                                               bool allowRiskyFoundation,
+-                                              bool consultPhysicalHistory = true) {
++                                              bool consultPhysicalHistory = true,
++                                              bool allowRecoveryPreparation = false) {
+@@
+     const int rootHidden = hiddenCardCount(root);
+     const int rootFoundation = virtualFoundationCount(root);
+     const int rootDebt = foundationRiskDebt(root.foundations);
++    const int rootMobility = virtualMobility(root);
++    const int rootWasteAccess = usefulWasteAccessScore(root);
++    const int rootDependency = dependencyPenalty(root);
++    const int rootStructural = virtualStructuralScore(root);
+@@
+         const bool acceptedRiskyGain = allowRiskyFoundation &&
+                                         foundationNow > rootFoundation;
++        // recordRootPlan() deliberately retains a searched bridge move during
++        // strategic recovery when it improves mobility, Waste accessibility,
++        // dependency pressure, or the global structure without adding
++        // Foundation debt. The executor previously had no matching definition,
++        // so every one of those retained roots was later rejected as
++        // "no-proven-progress" and the live board appeared frozen. Accept the
++        // first matching bridge only in Recovery mode; normal play still
++        // requires an irreversible reveal/Foundation milestone.
++        const bool recoveryPreparation = allowRecoveryPreparation && i >= 1 &&
++            debtNow <= rootDebt && foundationNow <= rootFoundation &&
++            (virtualMobility(cursor) > rootMobility ||
++             usefulWasteAccessScore(cursor) > rootWasteAccess ||
++             rootDependency - dependencyPenalty(cursor) >= 120 ||
++             virtualStructuralScore(cursor) - rootStructural >= 900);
+         const bool reachedMilestone = won || hiddenGain || safeFoundationGain ||
+-                                      debtReduction || acceptedRiskyGain;
++                                      debtReduction || acceptedRiskyGain ||
++                                      recoveryPreparation;
+@@
+                             (hiddenGain ? "hidden-reveal" :
+                              (debtReduction ? "foundation-debt-reduced" :
+                               (safeFoundationGain ? "safe-foundation" :
+-                                                    "risk-bounded-foundation")));
++                               (acceptedRiskyGain ? "risk-bounded-foundation" :
++                                                    "recovery-preparation"))));
+@@
+         const bool allowRiskyFoundation = rootSource != RootSource::Normal;
+         const CertifiedPlanPrefix certified = certifyPlanPrefix(
+-            state, plan.line, allowRiskyFoundation);
++            state, plan.line, allowRiskyFoundation, true,
++            rootSource == RootSource::Recovery);
+*** End Patch

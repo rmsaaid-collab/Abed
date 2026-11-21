@@ -1,0 +1,6 @@
+GOAT_PROTECTED_2 {
+    global:
+        JNI_OnLoad;
+    local:
+        *;
+};
