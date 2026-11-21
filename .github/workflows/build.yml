@@ -22,14 +22,6 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '11'
-      - name: Fix build_guest_bridge.ps1 integer sort
-        shell: pwsh
-        run: |
-          $p = "tools\build_guest_bridge.ps1"
-          $content = Get-Content $p -Raw
-          $content = [regex]::Replace($content, 'Sort-Object\s*\{[^\r\n]*\}', 'Sort-Object { ([regex]::Match($_.Name, "\d+").Value -as [int]) }')
-          [System.IO.File]::WriteAllText((Resolve-Path $p), $content)
-          Get-Content $p | Select-Object -First 15
       - run: .\gradlew.bat assembleDebug
       - uses: actions/upload-artifact@v4
         with:
