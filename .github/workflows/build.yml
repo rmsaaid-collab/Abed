@@ -22,6 +22,20 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '11'
+      - name: Fix NDK path in build_loading_compat.ps1
+        shell: pwsh
+        run: |
+          $ndkPath = Join-Path $env:ANDROID_HOME "ndk\25.1.8937393"
+          "ANDROID_NDK_HOME=$ndkPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "ANDROID_NDK_ROOT=$ndkPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $compatScript = "tools\build_loading_compat.ps1"
+          if (Test-Path $compatScript) {
+            $raw = Get-Content -Path $compatScript -Raw
+            $ndkEscaped = $ndkPath -replace '\\', '\\'
+            $raw = [regex]::Replace($raw, '[A-Za-z]:\\[^"''\r\n]*?ndk\\25\.1\.8937393', $ndkEscaped)
+            Set-Content -Path $compatScript -Value $raw -NoNewline
+            Select-String -Path $compatScript -Pattern "ndk|clang"
+          }
       - run: .\gradlew.bat assembleDebug
       - uses: actions/upload-artifact@v4
         with:
