@@ -2,7 +2,7 @@ name: Build APK
 on: [push, workflow_dispatch]
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     defaults:
       run:
         working-directory: GOAT/LOADER
@@ -14,15 +14,15 @@ jobs:
           java-version: '17'
       - name: Install NDK 25.1.8937393
         run: |
-          SDKMANAGER=$(find "$ANDROID_HOME" -name "sdkmanager" -type f 2>/dev/null | head -n 1)
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "ndk;25.1.8937393"
+          $sdkmanager = Get-ChildItem -Path "$env:ANDROID_HOME" -Filter "sdkmanager.bat" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          Write-Host "Using sdkmanager: $sdkmanager"
+          "y" * 20 | & $sdkmanager --licenses | Out-Null
+          & $sdkmanager "ndk;25.1.8937393"
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
-      - run: chmod +x gradlew
-      - run: ./gradlew assembleDebug
+      - run: .\gradlew.bat assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: app-debug
