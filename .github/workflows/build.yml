@@ -34,10 +34,14 @@ jobs:
             $ndkEscaped = $ndkPath -replace '\\', '\\'
             $raw = [regex]::Replace($raw, '[A-Za-z]:\\[^"''\r\n]*?ndk\\25\.1\.8937393', $ndkEscaped)
             Set-Content -Path $compatScript -Value $raw -NoNewline
-            Select-String -Path $compatScript -Pattern "ndk|clang"
           }
       - run: .\gradlew.bat assembleDebug
+      - name: Find built APKs
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path "app\build\outputs\apk" -Filter "*.apk" -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
       - uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: GOAT/LOADER/app/build/outputs/apk/debug/*.apk
+          path: GOAT/LOADER/app/build/outputs/apk/**/*.apk
+          if-no-files-found: warn
