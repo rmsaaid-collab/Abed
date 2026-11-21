@@ -25,18 +25,14 @@ jobs:
       - name: Fix build_guest_bridge.ps1 integer sort
         shell: pwsh
         run: |
-          git checkout -- tools/build_guest_bridge.ps1
-          $scriptPath = "tools\build_guest_bridge.ps1"
-          $lines = Get-Content -Path $scriptPath
-          $lines = $lines | ForEach-Object {
-            if ($_ -match 'Sort-Object') {
-              $_ -replace '\[int\]\(\$_\.Name\s+-replace\s+''\^android-'',''''\)', '([regex]::Match($_.Name, ''\d+'').Value -as [int])'
-            } else {
-              $_
-            }
-          }
-          $lines | Set-Content -Path $scriptPath
-          $lines[9]
+          $scriptPath = Join-Path (Get-Location) "tools\build_guest_bridge.ps1"
+          Write-Host "Target script: $scriptPath"
+          $content = Get-Content -Path $scriptPath -Raw
+          $pattern = '\[int\]\(\$_\.Name\s+-replace\s+[''"]\^android-[''"]\s*,\s*[''"][''"]\)'
+          $replacement = '([int]([regex]::Match($_.Name, ''\d+'').Value))'
+          $content = [regex]::Replace($content, $pattern, $replacement)
+          Set-Content -Path $scriptPath -Value $content -NoNewline
+          Select-String -Path $scriptPath -Pattern "Sort-Object"
       - run: .\gradlew.bat assembleDebug
       - uses: actions/upload-artifact@v4
         with:
