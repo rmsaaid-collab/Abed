@@ -13,6 +13,8 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
       - run: chmod +x gradlew
+      - name: Install NDK 25.1.8937393
+        run: yes | sdkmanager --licenses && sdkmanager "ndk;25.1.8937393"
       - run: ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
